@@ -1,0 +1,15 @@
+node_modules
+dist
+pages-dist
+.output
+.vercel
+.tanstack
+.nitro
+*.log
+.env
+.env.*
+!.env.example
+screenshots
+artifacts
+/tmp
+.node_modules.lock
