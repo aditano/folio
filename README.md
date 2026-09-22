@@ -6,11 +6,9 @@ Extract text from images and PDFs in the browser. Files stay on your device.
 
 ## Features
 
-- Drop a PNG, JPG, WebP, or PDF
-- Paste an image from the clipboard
-- On-device OCR with Tesseract (many languages)
-- Side-by-side page preview and extracted text
-- Copy a page, copy the whole document, or download `.txt`
+- Drop or paste a PNG, JPG, WebP, or PDF
+- On-device OCR with Tesseract
+- Copy the text or download a `.txt` file
 
 ## Develop
 

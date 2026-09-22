@@ -1,27 +1,9 @@
-import type { WordBox } from "./types";
-
 type TessWorker = {
   recognize: (
     image: Blob | HTMLCanvasElement | File,
     options?: Record<string, unknown>,
     output?: Record<string, boolean>,
-  ) => Promise<{
-    data: {
-      text: string;
-      confidence: number;
-      blocks: Array<{
-        paragraphs: Array<{
-          lines: Array<{
-            words: Array<{
-              text: string;
-              confidence: number;
-              bbox: { x0: number; y0: number; x1: number; y1: number };
-            }>;
-          }>;
-        }>;
-      }> | null;
-    };
-  }>;
+  ) => Promise<{ data: { text: string } }>;
   reinitialize: (langs: string, oem?: number) => Promise<unknown>;
   terminate: () => Promise<unknown>;
 };
@@ -29,26 +11,6 @@ type TessWorker = {
 let worker: TessWorker | null = null;
 let workerLang = "";
 let starting: Promise<TessWorker> | null = null;
-
-function flattenWords(blocks: NonNullable<Awaited<ReturnType<TessWorker["recognize"]>>["data"]["blocks"]>): WordBox[] {
-  const words: WordBox[] = [];
-  for (const block of blocks) {
-    for (const paragraph of block.paragraphs) {
-      for (const line of paragraph.lines) {
-        for (const word of line.words) {
-          const text = word.text.trim();
-          if (!text) continue;
-          words.push({
-            text,
-            confidence: word.confidence,
-            bbox: word.bbox,
-          });
-        }
-      }
-    }
-  }
-  return words;
-}
 
 export async function getTesseractWorker(
   lang: string,
@@ -98,13 +60,11 @@ export async function recognizeLocal(
   image: Blob | HTMLCanvasElement | File,
   lang: string,
   onProgress?: (status: string, progress: number) => void,
-): Promise<{ text: string; confidence: number; words: WordBox[] }> {
+): Promise<{ text: string }> {
   const w = await getTesseractWorker(lang, onProgress);
-  const { data } = await w.recognize(image, {}, { text: true, blocks: true });
+  const { data } = await w.recognize(image, {}, { text: true });
   return {
-    text: (data.text ?? "").replace(/\u000c/g, "").trimEnd(),
-    confidence: data.confidence ?? 0,
-    words: data.blocks ? flattenWords(data.blocks) : [],
+    text: (data.text ?? "").replaceAll("\u000c", "").trimEnd(),
   };
 }
 
