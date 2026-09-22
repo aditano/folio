@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACCEPTED_EXT, ACCEPTED_MIME, MAX_FILE_BYTES } from "@/lib/ocr/types";
@@ -34,14 +34,10 @@ export function Dropzone({
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
-  const handleList = useCallback(
-    (list: FileList | File[] | null) => {
-      if (!list || disabled) return;
-      const { accepted } = filterAccepted(list);
-      if (accepted.length) onFiles(accepted);
-    },
-    [disabled, onFiles],
-  );
+  function emit(list: FileList | null) {
+    if (!list || disabled || !list.length) return;
+    onFiles(Array.from(list));
+  }
 
   return (
     <div
@@ -61,11 +57,11 @@ export function Dropzone({
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        handleList(e.dataTransfer.files);
+        emit(e.dataTransfer.files);
       }}
       className={cn(
-        "relative rounded-xl bg-surface p-1.5 transition-[box-shadow,transform] duration-200 ease-out",
-        over ? "scale-[1.01] shadow-[var(--shadow-border-hover)]" : "shadow-[var(--shadow-border)]",
+        "rounded-xl bg-surface p-1.5 shadow-[var(--shadow-border)]",
+        over && "shadow-[var(--shadow-border-hover)]",
       )}
     >
       <button
@@ -73,27 +69,22 @@ export function Dropzone({
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
         className={cn(
-          "flex min-h-52 w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center transition-colors duration-200",
+          "flex min-h-52 w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center",
           over ? "border-primary/50 bg-elevated" : "border-border bg-bg/40",
           disabled && "opacity-50",
         )}
       >
-        <span className="grid size-12 place-items-center rounded-md bg-elevated text-fg shadow-[var(--shadow-border)]">
-          <FileUp className="size-5" strokeWidth={1.75} />
-        </span>
-        <span className="font-display text-2xl font-medium tracking-tight text-fg">Drop a page here</span>
-        <span className="max-w-sm text-sm text-muted">
-          Images or PDFs, up to 20 MB. Or click to choose a file.
-        </span>
+        <FileUp className="size-5 text-muted" strokeWidth={1.75} />
+        <span className="text-lg font-medium text-fg">Drop a file here</span>
+        <span className="text-sm text-muted">PNG, JPG, WebP, or PDF. You can also paste.</span>
       </button>
       <input
         ref={inputRef}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,application/pdf,.pdf"
-        multiple
         className="sr-only"
         onChange={(e) => {
-          handleList(e.target.files);
+          emit(e.target.files);
           e.target.value = "";
         }}
       />

@@ -1,7 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
-import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Folio";
@@ -16,7 +15,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "description", content: "Extract text from images and PDFs. On-device OCR, or AI when you need it." },
+      { name: "description", content: "Extract text from images and PDFs in the browser." },
       { name: "apple-mobile-web-app-title", content: APP_NAME },
       { name: "theme-color", content: "#0c0b0a" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -35,12 +34,6 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: `${import.meta.env.BASE_URL}__grok/manifest.webmanifest` },
       { rel: "apple-touch-icon", href: `${import.meta.env.BASE_URL}__grok/icon-180.png` },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap",
-      },
     ],
   }),
   component: () => (
@@ -53,13 +46,6 @@ export const Route = createRootRoute({
         <AuthProvider>
           <Outlet />
         </AuthProvider>
-        <Toaster
-          theme="dark"
-          position="bottom-center"
-          toastOptions={{
-            className: "!bg-elevated !text-fg !border-border !shadow-none",
-          }}
-        />
         <Scripts />
       </body>
     </html>

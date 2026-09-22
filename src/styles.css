@@ -15,8 +15,8 @@
   --color-success: #7a9a78;
   --color-warn: #c4a36a;
 
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --radius-xs: 0.25rem;
@@ -84,57 +84,4 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-@keyframes folio-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-    filter: blur(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-@keyframes folio-shimmer {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-.folio-enter {
-  animation: folio-enter 400ms var(--ease-out) both;
-}
-
-.folio-enter-delay-1 {
-  animation-delay: 40ms;
-}
-.folio-enter-delay-2 {
-  animation-delay: 80ms;
-}
-.folio-enter-delay-3 {
-  animation-delay: 120ms;
-}
-.folio-enter-delay-4 {
-  animation-delay: 160ms;
-}
-
-.folio-shimmer {
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in oklab, var(--color-fg) 18%, transparent) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: folio-shimmer 1.4s linear infinite;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
 }
