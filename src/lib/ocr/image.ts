@@ -16,6 +16,11 @@ export function scaleForOcr(width: number, height: number): { width: number; hei
   };
 }
 
+/**
+ * Draw a bitmap/canvas for OCR. Uses a white matte so transparent PNGs still
+ * have contrast for Tesseract, and disables smoothing to avoid OCR artifacts
+ * on sharp glyph edges (e.g. HELLO → HELLL).
+ */
 export function drawBitmapToCanvas(
   source: ImageBitmap | HTMLCanvasElement,
   targetWidth?: number,
@@ -32,8 +37,7 @@ export function drawBitmapToCanvas(
   canvas.height = size.height;
   const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) throw new Error("Could not open a drawing surface.");
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
