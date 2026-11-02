@@ -7,10 +7,22 @@ function isAccepted(file: File) {
   return ACCEPTED_MIME.has(file.type) || ACCEPTED_EXT.test(file.name);
 }
 
+function isHeic(file: File) {
+  return (
+    /image\/heic|image\/heif/i.test(file.type) || /\.heic$|\.heif$/i.test(file.name)
+  );
+}
+
 export function filterAccepted(files: FileList | File[]): { accepted: File[]; rejected: string[] } {
   const accepted: File[] = [];
   const rejected: string[] = [];
   for (const file of Array.from(files)) {
+    if (isHeic(file)) {
+      rejected.push(
+        `${file.name} is HEIC/HEIF, which Folio cannot decode yet. Convert to PNG or JPEG first.`,
+      );
+      continue;
+    }
     if (!isAccepted(file)) {
       rejected.push(`${file.name} is not an image or PDF.`);
       continue;
