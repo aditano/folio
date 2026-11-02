@@ -13,3 +13,5 @@ screenshots
 artifacts
 /tmp
 .node_modules.lock
+
+# Never commit secrets or local env files (.env already ignored above)
