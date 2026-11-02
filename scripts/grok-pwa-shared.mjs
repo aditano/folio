@@ -159,19 +159,17 @@ export function grokXCreatorHeadTags(creator = readXCreator(), creatorId = readX
   ];
 }
 
-/** Platform "Created with Grok" banner — injected into every HTML document. */
+/**
+ * Platform "Created with Grok" banner. Only inject when a project id is set so
+ * standalone / GitHub Pages / non-sandbox deploys do not load grok.com JS.
+ */
 export function grokExtensionsHeadTags(projectId = readGrokProjectId()) {
   const id = escapeHtml(projectId);
-  const tags = [];
-  if (projectId) {
-    tags.push(`<meta name="grok-project-id" content="${id}">`);
-  }
-  tags.push(
-    `<script src="${GROK_EXTENSIONS_SCRIPT_SRC}"${
-      projectId ? ` data-project-id="${id}"` : ""
-    } defer></script>`,
-  );
-  return tags;
+  if (!projectId) return [];
+  return [
+    `<meta name="grok-project-id" content="${id}">`,
+    `<script src="${GROK_EXTENSIONS_SCRIPT_SRC}" data-project-id="${id}" defer></script>`,
+  ];
 }
 
 export function injectGrokPwaHead(
@@ -196,7 +194,7 @@ export function injectGrokPwaHead(
       return !html.includes(`name="${key}"`);
     })
     .map(([, tag]) => tag);
-  if (!html.includes("/grok-app-builder/extensions.js")) {
+  if (projectId && !html.includes("/grok-app-builder/extensions.js")) {
     missing.push(...grokExtensionsHeadTags(projectId));
   } else if (projectId && !html.includes('name="grok-project-id"')) {
     missing.push(`<meta name="grok-project-id" content="${escapeHtml(projectId)}">`);
