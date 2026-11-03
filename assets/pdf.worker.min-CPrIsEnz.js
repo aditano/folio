@@ -1,0 +1,1 @@
+var e=`/folio/assets/pdf.worker.min-CHFwMXne.mjs`;export{e as default};
