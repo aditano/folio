@@ -9,7 +9,7 @@ import { canvasToBlob, drawBitmapToCanvas, fileToBitmap } from "@/lib/ocr/image"
 import { OCR_LANGUAGES } from "@/lib/ocr/languages";
 import { renderPdfPages } from "@/lib/ocr/pdf";
 import { useOcrSettings } from "@/lib/ocr/store";
-import { recognizeLocal } from "@/lib/ocr/tesseract";
+import { recognizeLocal, terminateTesseract } from "@/lib/ocr/tesseract";
 import { MAX_PDF_PAGES, type DocumentJob, type PageResult } from "@/lib/ocr/types";
 
 function uid() {
@@ -32,6 +32,10 @@ function languageLabel(code: string) {
   return OCR_LANGUAGES.find((lang) => lang.code === code)?.label ?? code;
 }
 
+function isRtlLanguage(code: string) {
+  return code === "ara" || code === "heb" || code === "urd" || code === "fas";
+}
+
 function documentText(job: DocumentJob) {
   return job.pages
     .map((page, index) =>
@@ -49,6 +53,8 @@ export function OcrStudio() {
   const [notice, setNotice] = useState<{ text: string; tone: "error" | "info" } | null>(null);
   const [copied, setCopied] = useState(false);
   const [readLanguage, setReadLanguage] = useState(language);
+  // Avoid hydration mismatch #418: persisted language applies after mount.
+  const [langReady, setLangReady] = useState(false);
   const runId = useRef(0);
   const objectUrls = useRef<string[]>([]);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -62,6 +68,15 @@ export function OcrStudio() {
     );
     return Math.round((sum / job.pages.length) * 100);
   }, [job]);
+
+  const revokeTrackedUrls = useCallback(() => {
+    objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrls.current = [];
+  }, []);
+
+  useEffect(() => {
+    setLangReady(true);
+  }, []);
 
   useEffect(() => {
     const urls = objectUrls.current;
@@ -92,12 +107,20 @@ export function OcrStudio() {
   }, []);
 
   const runPages = useCallback(
-    async (nextJob: DocumentJob, blobs: Record<string, Blob>, lang: string, generation: number) => {
+    async (
+      nextJob: DocumentJob,
+      blobs: Record<string, Blob>,
+      lang: string,
+      generation: number,
+      onlyPageIds?: Set<string>,
+    ) => {
       setBusy(true);
       setReadLanguage(lang);
 
       for (const nextPage of nextJob.pages) {
         if (runId.current !== generation) return;
+        if (onlyPageIds && !onlyPageIds.has(nextPage.id)) continue;
+
         const blob = blobs[nextPage.id];
         if (!blob) {
           updatePage(nextPage.id, {
@@ -151,6 +174,7 @@ export function OcrStudio() {
       canvases: HTMLCanvasElement[],
       lang: string,
       generation: number,
+      previewUrls?: string[],
     ) => {
       const pages: PageResult[] = [];
       const blobs: Record<string, Blob> = {};
@@ -158,10 +182,13 @@ export function OcrStudio() {
         const blob = await canvasToBlob(canvas);
         const id = uid();
         blobs[id] = blob;
+        const previewUrl = previewUrls?.[index]
+          ? trackUrl(previewUrls[index]!)
+          : trackUrl(URL.createObjectURL(blob));
         pages.push({
           id,
           index,
-          previewUrl: trackUrl(URL.createObjectURL(blob)),
+          previewUrl,
           text: "",
           status: "queued",
           progress: 0,
@@ -184,11 +211,22 @@ export function OcrStudio() {
       setNotice(null);
       setCopied(false);
       setBusy(true);
+      revokeTrackedUrls();
+      setJob(null);
+      setSources({});
 
       try {
         if (isPdf(file)) {
           const rendered = await renderPdfPages(file, MAX_PDF_PAGES);
           if (runId.current !== generation) return;
+          if (rendered.totalPages === 0 || rendered.pages.length === 0) {
+            setBusy(false);
+            setNotice({
+              tone: "error",
+              text: "That PDF has no pages to read.",
+            });
+            return;
+          }
           if (rendered.truncated) {
             setNotice({
               tone: "info",
@@ -205,10 +243,10 @@ export function OcrStudio() {
               id,
               index,
               previewUrl: item.previewUrl,
-              text: "",
-              status: "queued",
-              progress: 0,
-              progressLabel: "Waiting",
+              text: item.textLayer ?? "",
+              status: item.textLayer ? "done" : "queued",
+              progress: item.textLayer ? 1 : 0,
+              progressLabel: item.textLayer ? "From PDF text" : "Waiting",
             });
           });
           const nextJob: DocumentJob = {
@@ -221,13 +259,24 @@ export function OcrStudio() {
           setJob(nextJob);
           setSources(blobs);
           setPageIndex(0);
-          await runPages(nextJob, blobs, lang, generation);
+          const needsOcr = new Set(
+            pages.filter((p) => p.status !== "done").map((p) => p.id),
+          );
+          if (needsOcr.size === 0) {
+            setBusy(false);
+            setReadLanguage(lang);
+            return;
+          }
+          await runPages(nextJob, blobs, lang, generation, needsOcr);
         } else {
+          // Keep the original bytes for the preview so transparent PNGs are not
+          // flattened to a white matte in the UI; OCR still uses the prepared canvas.
+          const previewUrl = trackUrl(URL.createObjectURL(file));
           const bitmap = await fileToBitmap(file);
           const canvas = drawBitmapToCanvas(bitmap);
           bitmap.close();
           if (runId.current !== generation) return;
-          await ingestCanvases(file.name, "image", [canvas], lang, generation);
+          await ingestCanvases(file.name, "image", [canvas], lang, generation, [previewUrl]);
         }
       } catch (err) {
         if (runId.current !== generation) return;
@@ -238,7 +287,7 @@ export function OcrStudio() {
         });
       }
     },
-    [ingestCanvases, language, runPages, trackUrl],
+    [ingestCanvases, language, revokeTrackedUrls, runPages, trackUrl],
   );
 
   useEffect(() => {
@@ -275,6 +324,7 @@ export function OcrStudio() {
   function handleStop() {
     runId.current += 1;
     setBusy(false);
+    void terminateTesseract();
     setJob((prev) => {
       if (!prev) return prev;
       return {
@@ -291,6 +341,8 @@ export function OcrStudio() {
   function handleClear() {
     runId.current += 1;
     setBusy(false);
+    void terminateTesseract();
+    revokeTrackedUrls();
     setJob(null);
     setSources({});
     setPageIndex(0);
@@ -301,20 +353,29 @@ export function OcrStudio() {
   async function rerun() {
     if (!job || busy || !Object.keys(sources).length) return;
     const generation = ++runId.current;
+    const languageChanged = readLanguage !== language;
+    const errorIds = new Set(
+      job.pages.filter((item) => item.status === "error").map((item) => item.id),
+    );
+    // Language change: re-read everything. Try again: only failed pages, keep good text.
+    const onlyIds = languageChanged ? undefined : errorIds.size ? errorIds : undefined;
     const reset: DocumentJob = {
       ...job,
-      pages: job.pages.map((item) => ({
-        ...item,
-        text: "",
-        status: "queued" as const,
-        progress: 0,
-        progressLabel: "Waiting",
-        error: undefined,
-      })),
+      pages: job.pages.map((item) => {
+        if (onlyIds && !onlyIds.has(item.id)) return item;
+        return {
+          ...item,
+          text: "",
+          status: "queued" as const,
+          progress: 0,
+          progressLabel: "Waiting",
+          error: undefined,
+        };
+      }),
     };
     setJob(reset);
     setNotice(null);
-    await runPages(reset, sources, language, generation);
+    await runPages(reset, sources, language, generation, onlyIds);
   }
 
   async function copyText() {
@@ -337,8 +398,12 @@ export function OcrStudio() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `${job.name.replace(/\.[^.]+$/, "") || "folio"}.txt`;
+    // Safari/Firefox often ignore click() on a detached anchor.
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   const canRerun =
@@ -347,6 +412,8 @@ export function OcrStudio() {
     Object.keys(sources).length > 0 &&
     (readLanguage !== language || job.pages.some((item) => item.status === "error"));
   const hasText = !!job?.pages.some((item) => item.text);
+  const selectLanguage = langReady ? language : "eng";
+  const textDir = isRtlLanguage(language) ? "rtl" : "ltr";
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col px-4 py-8 sm:px-6">
@@ -361,8 +428,9 @@ export function OcrStudio() {
           Language
           <select
             id="folio-lang"
-            value={language}
+            value={selectLanguage}
             onChange={(e) => setLanguage(e.target.value)}
+            suppressHydrationWarning
             className="h-11 rounded-md bg-elevated px-3 text-sm text-fg shadow-[var(--shadow-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             {OCR_LANGUAGES.map((lang) => (
@@ -440,6 +508,7 @@ export function OcrStudio() {
                 onChange={(e) => updatePage(page.id, { text: e.target.value })}
                 readOnly={page.status !== "done"}
                 spellCheck={false}
+                dir={textDir}
                 placeholder={
                   page.status === "done"
                     ? "No text found on this page."

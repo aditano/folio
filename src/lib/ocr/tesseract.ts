@@ -11,11 +11,10 @@ type TessWorker = {
 let worker: TessWorker | null = null;
 let workerLang = "";
 let starting: Promise<TessWorker> | null = null;
+/** Mutable so reused workers report progress to the active recognize call. */
+let activeProgress: ((status: string, progress: number) => void) | undefined;
 
-export async function getTesseractWorker(
-  lang: string,
-  onProgress?: (status: string, progress: number) => void,
-): Promise<TessWorker> {
+export async function getTesseractWorker(lang: string): Promise<TessWorker> {
   if (worker && workerLang === lang) return worker;
   if (starting) {
     const w = await starting;
@@ -41,7 +40,7 @@ export async function getTesseractWorker(
 
     const next = (await createWorker(lang, 1, {
       logger: (m: { status: string; progress: number }) => {
-        onProgress?.(m.status, m.progress ?? 0);
+        activeProgress?.(m.status, m.progress ?? 0);
       },
     })) as TessWorker;
     worker = next;
@@ -61,18 +60,25 @@ export async function recognizeLocal(
   lang: string,
   onProgress?: (status: string, progress: number) => void,
 ): Promise<{ text: string }> {
-  const w = await getTesseractWorker(lang, onProgress);
-  const { data } = await w.recognize(image, {}, { text: true });
-  return {
-    text: (data.text ?? "").replaceAll("\u000c", "").trimEnd(),
-  };
+  activeProgress = onProgress;
+  try {
+    const w = await getTesseractWorker(lang);
+    const { data } = await w.recognize(image, {}, { text: true });
+    return {
+      text: (data.text ?? "").replaceAll("\u000c", "").trimEnd(),
+    };
+  } finally {
+    if (activeProgress === onProgress) activeProgress = undefined;
+  }
 }
 
 export async function terminateTesseract() {
+  activeProgress = undefined;
   if (!worker) return;
   const current = worker;
   worker = null;
   workerLang = "";
+  starting = null;
   try {
     await current.terminate();
   } catch {

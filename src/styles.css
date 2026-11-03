@@ -6,7 +6,8 @@
   --color-elevated: #1d1a17;
   --color-fg: #f3efe7;
   --color-muted: #9a948a;
-  --color-subtle: #6f6a62;
+  /* Slightly lighter than before so placeholder text clears ~4.5:1 on elevated. */
+  --color-subtle: #9a948a;
   --color-primary: #ece6db;
   --color-primary-fg: #161310;
   --color-border: #2c2823;

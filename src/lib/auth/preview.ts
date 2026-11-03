@@ -5,20 +5,25 @@
  * URL, which can't be pre-registered per app. The broker instead exposes ONE
  * shared "preview" client that accepts any
  * `https://*.grok-sandbox.com/api/auth/oauth2/callback/*`
- * (broker: `app-builder-deployer/auth/src/preview-oauth.ts`). Baking it here lets
- * the live preview do REAL sign-in — no demo/mock users — with no platform
- * injection. When deployed the deployer injects a per-app
- * `GROK_AUTH_*` that overrides these (see `server.ts`).
+ * (broker: `app-builder-deployer/auth/src/preview-oauth.ts`). When deployed the
+ * deployer injects a per-app `GROK_AUTH_*` that overrides these (see `server.ts`).
  *
- * These MUST equal the broker's `GROK_PREVIEW_CLIENT_ID` /
- * `GROK_PREVIEW_CLIENT_SECRET` (set in the broker's Vercel env; the broker stores
- * only the secret's `base64url(SHA-256)` hash). This is a dedicated, low-privilege
- * client (preview-only, `*.grok-sandbox.com`) — rotate it by regenerating the
- * broker env var and this constant together.
+ * Client id/secret MUST come from environment variables — never commit secrets.
+ * Prefer `GROK_PREVIEW_CLIENT_*` for the shared preview client; `GROK_AUTH_CLIENT_*`
+ * is the deployer-injected per-app pair. Rotate the preview secret in the broker
+ * console whenever it may have been exposed.
  */
-export const PREVIEW_CLIENT_ID = "grok_preview";
+function env(key: string): string | undefined {
+  const value = process.env[key]?.trim();
+  return value ? value : undefined;
+}
+
+export const PREVIEW_CLIENT_ID =
+  env("GROK_PREVIEW_CLIENT_ID") ?? env("GROK_AUTH_CLIENT_ID") ?? "grok_preview";
+
+/** Empty when unset — callers must not fall back to a hardcoded secret. */
 export const PREVIEW_CLIENT_SECRET =
-  "8bcdb7fc5a33874ad933ca568918d5790388a0795e44c4d1dea691f801b17ec5";
+  env("GROK_PREVIEW_CLIENT_SECRET") ?? env("GROK_AUTH_CLIENT_SECRET") ?? "";
 
 /** The shared auth broker issuer (OIDC discovery lives under it). */
 export const GROK_ISSUER_DEFAULT = "https://auth.grok.me";
